@@ -1,0 +1,6 @@
+(function(){
+    const form=document.getElementById('login-form');
+    if(form)form.addEventListener('submit',async event=>{event.preventDefault();const data=Object.fromEntries(new FormData(form));try{const user=await blogApi('/auth/login',{method:'POST',body:JSON.stringify(data)});location.href=user.role==='ADMIN'?'admin.html':'index.html';}catch(error){document.getElementById('message').innerHTML=`<div class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">${escapeHtml(error.message)}</div>`;}});
+    const profile=document.getElementById('profile-form');
+    if(profile)(async()=>{const user=await blogApi('/auth/me');if(!user||!user.id){location.href='login.html';return;}document.getElementById('username').value=user.username;document.getElementById('nickname').value=user.nickname;document.getElementById('email').value=user.email;document.getElementById('avatar').value=user.avatar||'';profile.addEventListener('submit',async event=>{event.preventDefault();try{await blogApi('/profile',{method:'PUT',body:JSON.stringify({nickname:document.getElementById('nickname').value,email:document.getElementById('email').value,avatar:document.getElementById('avatar').value})});showMessage('保存成功');}catch(error){showMessage(error.message,true);}});})().catch(()=>location.href='login.html');
+})();

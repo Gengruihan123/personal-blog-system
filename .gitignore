@@ -1,0 +1,23 @@
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/target/
+*.class
+*.log
+
+# Local IDE configuration
+**/.idea/
+**/.run/
+**/.vscode/
+*.iml
+
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+**/application-local.yml
+**/application-local.yaml
+
+# OS files
+.DS_Store
+Thumbs.db

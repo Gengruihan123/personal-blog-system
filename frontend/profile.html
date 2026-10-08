@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>个人资料 - 我的个人博客</title>
+  <script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={theme:{extend:{colors:{primary:'#3B82F6',dark:'#1F2937'}}}}</script>
+</head><body class="bg-gray-50">
+  <header class="bg-white shadow-sm"><div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between"><a href="index.html" class="font-bold text-xl">我的博客</a><a href="index.html" class="text-blue-600">返回首页</a></div></header>
+  <main class="max-w-3xl mx-auto p-4 py-12"><section class="bg-white rounded-xl shadow-sm p-8"><h1 class="text-3xl font-bold mb-2">个人资料</h1><p class="text-gray-500 mb-7">修改昵称、邮箱和头像地址</p>
+    <form id="profile-form" class="space-y-5"><label class="block">用户名<input id="username" disabled class="mt-2 w-full px-4 py-3 border rounded-lg bg-gray-100"></label><label class="block">昵称<input id="nickname" required maxlength="50" class="mt-2 w-full px-4 py-3 border rounded-lg"></label><label class="block">邮箱<input id="email" required type="email" class="mt-2 w-full px-4 py-3 border rounded-lg"></label><label class="block">头像地址<input id="avatar" type="url" class="mt-2 w-full px-4 py-3 border rounded-lg"></label><button class="bg-primary text-white px-6 py-3 rounded-lg">保存</button></form>
+  </section></main><script type="module" src="/js/config.js"></script><script type="module" src="/js/auth.js"></script>
+</body></html>

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java并发编程：线程池的原理与最佳实践 - 我的个人博客</title>
+    <meta name="description" content="本文深入探讨了Java线程池的工作原理，分析了核心参数的设置策略，并通过实例讲解了线程池在实际项目中的最佳实践。">
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入代码高亮 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    
+    <!-- 自定义配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        dark: '#1F2937',
+                        light: '#F3F4F6'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        serif: ['Georgia', 'Cambria', 'serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .article-content h2 {
+                @apply text-2xl font-bold text-gray-900 mt-8 mb-4;
+            }
+            .article-content h3 {
+                @apply text-xl font-bold text-gray-900 mt-6 mb-3;
+            }
+            .article-content p {
+                @apply my-4 text-gray-700 leading-relaxed;
+            }
+            .article-content img {
+                @apply max-w-full h-auto my-6 rounded-lg shadow-md;
+            }
+            .article-content ul {
+                @apply list-disc pl-6 my-4 text-gray-700;
+            }
+            .article-content ol {
+                @apply list-decimal pl-6 my-4 text-gray-700;
+            }
+            .article-content blockquote {
+                @apply border-l-4 border-primary pl-4 italic my-4 text-gray-600;
+            }
+            .article-content a {
+                @apply text-primary hover:underline;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- 导航栏 -->
+    <header class="sticky top-0 z-50 bg-white shadow-sm transition-all duration-300">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="flex-shrink-0 flex items-center">
+                        <i class="fa fa-pencil-square-o text-primary text-2xl mr-2"></i>
+                        <span class="font-bold text-xl text-dark">我的博客</span>
+                    </a>
+                    <nav class="hidden md:ml-10 md:flex md:space-x-8">
+                        <a href="/" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
+                            首页
+                        </a>
+                        <a href="/categories" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
+                            分类
+                        </a>
+                        <a href="/tags" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
+                            标签
+                        </a>
+                        <a href="/archive" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
+                            归档
+                        </a>
+                        <a href="/about" class="text-gray-500 hover:text-gray-700 hover:border-gray-300 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
+                            关于
+                        </a>
+                    </nav>
+                </div>
+                
+                <div class="flex items-center">
+                    <!-- 搜索框 -->
+                    <div class="relative mr-4 hidden md:block">
+                        <input type="text" placeholder="搜索文章..." class="py-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm">
+                        <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    
+                    <!-- 用户菜单 -->
+                    <div class="ml-3 relative">
+                        <div>
+                            <button type="button" class="flex items-center max-w-xs rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary" id="user-menu-button">
+                                <img class="h-8 w-8 rounded-full object-cover" src="https://picsum.photos/200/200" alt="用户头像">
+                            </button>
+                        </div>
+                        <!-- 下拉菜单 -->
+                        <div class="hidden origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 py-1 z-50" id="user-menu">
+                            <a href="/profile" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">个人资料</a>
+                            <a href="/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">管理后台</a>
+                            <a href="/logout" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">退出登录</a>
+                        </div>
+                    </div>
+                    
+                    <!-- 移动端菜单按钮 -->
+                    <button type="button" class="ml-4 md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary" id="mobile-menu-button">
+                        <i class="fa fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 移动端菜单 -->
+        <div class="md:hidden hidden" id="mobile-menu">
+            <div class="pt-2 pb-3 space-y-1">
+                <a href="/" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    首页
+                </a>
+                <a href="/categories" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    分类
+                </a>
+                <a href="/tags" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    标签
+                </a>
+                <a href="/archive" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    归档
+                </a>
+                <a href="/about" class="border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    关于
+                </a>
+            </div>
+            <div class="pt-4 pb-3 border-t border-gray-200">
+                <div class="flex items-center px-4">
+                    <div class="flex-shrink-0">
+                        <img class="h-10 w-10 rounded-full" src="https://picsum.photos/200/200" alt="用户头像">
+                    </div>
+                    <div class="ml-3">
+                        <div class="text-base font-medium text-gray-800">用户名</div>
+                        <div class="text-sm font-medium text-gray-500">user@example.com</div>
+                    </div>
+                </div>
+                <div class="mt-3 space-y-1 px-2">
+                    <a href="/profile" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+                        个人资料
+                    </a>
+                    <a href="/dashboard" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+                        管理后台
+                    </a>
+                    <a href="/logout" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+                        退出登录
+                    </a>
+                </div>
+            </div>
+            <div class="pt-4 pb-3 px-4">
+                <div class="relative">
+                    <input type="text" placeholder="搜索文章..." class="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary text-sm">
+                    <i class="fa fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="py-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- 文章内容 -->
+                <div class="lg:col-span-8">
+                    <article id="article-card" class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <!-- 文章头部 -->
+                        <div class="p-6 md:p-8">
+                            <div id="article-badges" class="flex flex-wrap items-center gap-2 mb-4">
+                                <a href="/category/tech" class="bg-primary/10 text-primary text-sm font-medium px-3 py-1 rounded-full hover:bg-primary/20 transition-colors">
+                                    技术
+                                </a>
+                                <a href="/tag/java" class="bg-blue-50 text-blue-700 text-sm font-medium px-3 py-1 rounded-full hover:bg-blue-100 transition-colors">
+                                    # Java
+                                </a>
+                                <a href="/tag/并发编程" class="bg-purple-50 text-purple-700 text-sm font-medium px-3 py-1 rounded-full hover:bg-purple-100 transition-colors">
+                                    # 并发编程
+                                </a>
+                            </div>
+                            
+                            <h1 id="article-title" class="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+                                Java并发编程：线程池的原理与最佳实践
+                            </h1>
+                            
+                            <div class="flex flex-wrap items-center justify-between mb-8">
+                                <div class="flex items-center mb-4 md:mb-0">
+                                    <img src="https://picsum.photos/200/200?random=10" alt="作者头像" class="h-10 w-10 rounded-full mr-3">
+                                    <div>
+                                        <div id="article-author" class="font-medium text-gray-900">张小明</div>
+                                        <div id="article-date" class="text-sm text-gray-500">发布于 2023-06-15</div>
+                                    </div>
+                                </div>
+                                
+                                <div id="article-meta" class="flex items-center text-gray-500 text-sm">
+                                    <span class="flex items-center mr-4">
+                                        <i class="fa fa-eye mr-1"></i> 1.2k 阅读
+                                    </span>
+                                    <span class="flex items-center mr-4">
+                                        <i class="fa fa-comment-o mr-1"></i> 32 评论
+                                    </span>
+                                    <span class="flex items-center">
+                                        <i class="fa fa-clock-o mr-1"></i> 10 分钟阅读
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-8">
+                                <img id="article-cover" src="https://picsum.photos/1200/600?random=1" alt="文章封面图" class="w-full h-auto rounded-lg shadow-md">
+                            </div>
+                        </div>
+                        
+                        <!-- 文章内容 -->
+                        <div id="article-content" class="px-6 md:px-8 pb-8 article-content">
+                            <p>在Java并发编程中，线程池是一种重要的技术，它能够有效地管理线程资源，提高系统性能。本文将深入探讨Java线程池的工作原理，分析核心参数的设置策略，并通过实例讲解线程池在实际项目中的最佳实践。</p>
+                            
+                            <h2>一、线程池的基本原理</h2>
+                            
+                            <p>线程池是一种池化技术，它预先创建一定数量的线程，当有任务需要执行时，直接从池中获取线程，而不是重新创建。任务执行完毕后，线程不会被销毁，而是返回到池中等待下一个任务。</p>
+                            
+                            <p>这种方式的主要优势在于：</p>
+                            
+                            <ul>
+                                <li>减少线程创建和销毁的开销</li>
+                                <li>控制并发线程的数量，避免资源耗尽</li>
+                                <li>提高响应速度，因为线程已经预先创建</li>
+                                <li>便于管理和监控线程</li>
+                            </ul>
+                            
+                            <h2>二、ThreadPoolExecutor的核心参数</h2>
+                            
+                            <p>Java中最核心的线程池实现是ThreadPoolExecutor，它的构造函数包含以下几个核心参数：</p>
+                            
+                            <pre><code class="language-java">public ThreadPoolExecutor(
+    int corePoolSize,
+    int maximumPoolSize,
+    long keepAliveTime,
+    TimeUnit unit,
+    BlockingQueue&lt;Runnable&gt; workQueue,
+    ThreadFactory threadFactory,
+    RejectedExecutionHandler handler
+)</code></pre>
+                            
+                            <h3>1. corePoolSize（核心线程数）</h3>
+                            <p>线程池维护的最小线程数量，即使这些线程处于空闲状态，也不会被销毁（除非设置了allowCoreThreadTimeOut）。</p>
+                            
+                            <h3>2. maximumPoolSize（最大线程数）</h3>
+                            <p>线程池允许创建的最大线程数量。当工作队列满了之后，如果还有新任务提交，会创建新的线程，直到达到这个最大值。</p>
+                            
+                            <h3>3. keepAliveTime（空闲线程存活时间）</h3>
+                            <p>当线程数量超过corePoolSize时，多余的空闲线程的存活时间。超过这个时间，空闲线程会被销毁。</p>
+                            
+                            <h3>4. workQueue（工作队列）</h3>
+                            <p>用于存储等待执行的任务的阻塞队列。常用的有：</p>
+                            <ul>
+                                <li>ArrayBlockingQueue：基于数组的有界阻塞队列</li>
+                                <li>LinkedBlockingQueue：基于链表的阻塞队列，默认大小为Integer.MAX_VALUE</li>
+                                <li>SynchronousQueue：不存储元素的阻塞队列，每个插入操作必须等待另一个线程的移除操作</li>
+                                <li>PriorityBlockingQueue：具有优先级的无限阻塞队列</li>
+                            </ul>
+                            
+                            <h3>5. threadFactory（线程工厂）</h3>
+                            <p>用于创建新线程的工厂，可以自定义线程的名称、优先级等。</p>
+                            
+                            <h3>6. handler（拒绝策略）</h3>
+                            <p>当线程池和工作队列都满了之后，对新提交任务的处理策略。Java提供了四种默认策略：</p>
+                            <ul>
+                                <li>AbortPolicy：直接抛出RejectedExecutionException异常</li>
+                                <li>CallerRunsPolicy：由提交任务的线程自己执行这个任务</li>
+                                <li>DiscardPolicy：直接丢弃任务，不做任何处理</li>
+                                <li>DiscardOldestPolicy：丢弃工作队列中最旧的任务，然后尝试提交新任务</li>
+                            </ul>
+                            
+                            <h2>三、线程池的工作流程</h2>
+                            
+                            <p>当向线程池提交一个任务时，线程池的处理流程如下：</p>
+                            
+                            <ol>
+                                <li>如果当前线程数小于corePoolSize，立即创建新线程执行任务</li>
+                                <li>如果当前线程数等于或大于corePoolSize，将任务加入工作队列</li>
+                                <li>如果工作队列已满，且当前线程数小于maximumPoolSize，创建新线程执行任务</li>
+                                <li>如果工作队列已满，且当前线程数等于maximumPoolSize，执行拒绝策略</li>
+                            </ol>
+                            
+                            <p>流程图如下：</p>
+                            
+                            <img src="https://picsum.photos/800/400?random=10" alt="线程池工作流程图" class="mx-auto">
+                            
+                            <h2>四、线程池的最佳实践</h2>
+                            
+                            <h3>1. 根据任务类型选择合适的线程池</h3>
+                            
+                            <p>Java的Executors类提供了几种常用的线程池工厂方法，但在实际项目中，建议根据具体需求自定义ThreadPoolExecutor，而不是直接使用Executors提供的默认实现，以避免资源耗尽的风险。</p>
+                            
+                            <p>常见的任务类型有：</p>
+                            <ul>
+                                <li>CPU密集型任务：需要大量计算，线程数应设置为CPU核心数 + 1</li>
+                                <li>IO密集型任务：需要大量IO操作，线程数可以设置为CPU核心数 * 2</li>
+                                <li>混合型任务：可以拆分为CPU密集型和IO密集型任务分别处理</li>
+                            </ul>
+                            
+                            <h3>2. 设置合理的队列大小</h3>
+                            
+                            <p>工作队列的大小应该根据系统的内存情况和任务特性来设置。过大的队列会占用过多内存，可能导致OOM；过小的队列可能导致频繁创建和销毁线程，影响性能。</p>
+                            
+                            <h3>3. 自定义拒绝策略</h3>
+                            
+                            <p>默认的拒绝策略可能不适合所有场景。在实际项目中，可以根据需求自定义拒绝策略，例如记录日志、保存任务到数据库稍后重试等。</p>
+                            
+                            <pre><code class="language-java">RejectedExecutionHandler customHandler = (r, executor) -> {
+    // 记录日志
+    log.warn("Task rejected: {}", r);
+    // 保存任务到数据库
+    saveTaskToDatabase(r);
+};
+
+ThreadPoolExecutor executor = new ThreadPoolExecutor(
+    corePoolSize,
+    maximumPoolSize,
+    keepAliveTime,
+    TimeUnit.SECONDS,
+    new ArrayBlockingQueue&lt;&gt;(queueSize),
+    Executors.defaultThreadFactory(),
+    customHandler
+);</code></pre>
+                            
+                            <h3>4. 正确关闭线程池</h3>
+                            
+                            <p>使用线程池后，需要正确关闭以释放资源。线程池提供了两个关闭方法：</p>
+                            <ul>
+                                <li>shutdown()：平缓关闭，不再接受新任务，但会等待已提交的任务执行完毕</li>
+                                <li>shutdownNow()：立即关闭，尝试中断正在执行的任务，并返回等待执行的任务列表</li>
+                            </ul>
+                            
+                            <p>通常建议使用shutdown()，并配合awaitTermination()等待线程池完全关闭：</p>
+                            
+                            <pre><code class="language-java">executor.shutdown();
+try {
+    // 等待60秒，如果还没关闭就强制关闭
+    if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+        executor.shutdownNow();
+        // 再等60秒
+        if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+            log.error("线程池没有正常关闭");
+        }
+    }
+} catch (InterruptedException e) {
+    executor.shutdownNow();
+    Thread.currentThread().interrupt();
+}</code></pre>
+                            
+                            <h3>5. 监控线程池状态</h3>
+                            
+                            <p>ThreadPoolExecutor提供了一些方法来获取线程池的状态信息，可以用于监控和调优：</p>
+                            <ul>
+                                <li>getCorePoolSize()：获取核心线程数</li>
+                                <li>getPoolSize()：获取当前线程数</li>
+                                <li>getActiveCount()：获取正在执行任务的线程数</li>
+                                <li>getQueue().size()：获取等待执行的任务数</li>
+                                <li>getCompletedTaskCount()：获取已完成的任务数</li>
+                            </ul>
+                            
+                            <h2>五、总结</h2>
+                            
+                            <p>线程池是Java并发编程中的重要组件，合理使用线程池可以显著提高系统性能和资源利用率。在实际项目中，我们需要根据任务特性选择合适的线程池参数，设置合理的队列大小和拒绝策略，并正确地监控和关闭线程池。</p>
+                            
+                            <p>希望本文能帮助你更好地理解和使用Java线程池，在实际项目中写出更高效、更健壮的并发程序。</p>
+                        </div>
+                        
+                        <!-- 文章底部 -->
+                        <div class="px-6 md:px-8 pb-8 pt-4 border-t border-gray-100">
+                            <div class="flex flex-wrap justify-between items-center">
+                                <div id="bottom-tags" class="mb-4 md:mb-0">
+                                    <span class="text-gray-500 mr-2">标签：</span>
+                                    <a href="/tag/java" class="bg-blue-50 text-blue-700 text-sm font-medium px-3 py-1 rounded-full hover:bg-blue-100 transition-colors mr-2">
+                                        Java
+                                    </a>
+                                    <a href="#" class="bg-purple-50 text-purple-700 text-sm font-medium px-3 py-1 rounded-full">并发编程</a>
+                                </div>
+                                <a href="index.html" class="text-primary hover:underline"><i class="fa fa-arrow-left mr-1"></i>返回首页</a>
+                            </div>
+                        </div>
+                    </article>
+
+                    <section class="bg-white rounded-xl shadow-sm mt-8 p-6 md:p-8">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">评论</h2>
+                        <div id="comment-list" class="space-y-6"></div>
+                        <form id="comment-form" class="mt-8 pt-6 border-t border-gray-100">
+                            <label class="block font-medium text-gray-900 mb-2" for="comment-content">发表评论</label>
+                            <textarea id="comment-content" required maxlength="500" rows="4" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" placeholder="登录后发表评论"></textarea>
+                            <button type="submit" class="mt-3 bg-primary text-white font-medium px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors">提交评论</button>
+                        </form>
+                    </section>
+                </div>
+
+                <aside class="lg:col-span-4 space-y-8">
+                    <section class="bg-white rounded-xl shadow-sm p-6">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4">关于作者</h2>
+                        <div class="flex items-center mb-4">
+                            <img src="https://picsum.photos/200/200?random=10" alt="作者头像" class="h-14 w-14 rounded-full mr-4">
+                            <div><div class="font-semibold text-gray-900">张小明</div><div class="text-sm text-gray-500">Java 开发者与技术博主</div></div>
+                        </div>
+                        <p class="text-gray-600 text-sm">分享 Java、Spring、数据库以及软件工程实践。</p>
+                    </section>
+                    <section class="bg-white rounded-xl shadow-sm p-6">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4">返回博客</h2>
+                        <a href="index.html" class="inline-flex items-center text-primary font-medium hover:underline"><i class="fa fa-home mr-2"></i>浏览更多文章</a>
+                    </section>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-dark text-white py-8 mt-8">
+        <div class="container mx-auto px-4 text-center text-gray-400">© 2026 我的个人博客 · 第三组个人博客系统</div>
+    </footer>
+    <script type="module" src="/js/config.js"></script>
+    <script type="module" src="/js/article-api.js"></script>
+</body>
+</html>
